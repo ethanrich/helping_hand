@@ -88,13 +88,13 @@ for k in range(3):
     # show cue
     reiz.Cue(canvas, visualstim=[reiz.visual.Mural("Close your hand")]).show(duration=3)
     # get data of last 1.5 seconds
-    openers_data = buffer.get_data()[:,opener_chans]
-    closers_data = buffer.get_data()[:,closer_chans]
+    openers_data = abs(buffer.get_data()[:,opener_chans])
+    closers_data = abs(buffer.get_data()[:,closer_chans])
     # for each channel, get the rms value
-    openers_rest   = [signal.detrend(openers_data[:,chan] - np.mean(openers_data[:,chan])) for chan in range(np.size(openers_data,1))]
-    openers_rest   = [np.sqrt(np.mean((openers_rest[chan] * 1000) ** 2))                   for chan in range(np.size(openers_data,1))]
-    closers_active = [signal.detrend(closers_data[:,chan] - np.mean(closers_data[:,chan])) for chan in range(np.size(closers_data,1))]
-    closers_active = [np.sqrt(np.mean((closers_active[chan] * 1000) ** 2))                 for chan in range(np.size(closers_data,1))]
+    openers_rest   = [openers_data[:,chan] - np.mean(openers_data[:,chan]) for chan in range(np.size(openers_data,1))]
+    openers_rest   = [np.sqrt(np.mean((openers_rest[chan] * 1000) ** 2))   for chan in range(np.size(openers_data,1))]
+    closers_active = [closers_data[:,chan] - np.mean(closers_data[:,chan]) for chan in range(np.size(closers_data,1))]
+    closers_active = [np.sqrt(np.mean((closers_active[chan] * 1000) ** 2)) for chan in range(np.size(closers_data,1))]
 
     if k < 2:
         reiz.Cue(canvas, visualstim=[reiz.visual.Mural("Prepare for next run")]).show(duration=2)
