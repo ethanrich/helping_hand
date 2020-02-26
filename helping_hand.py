@@ -133,8 +133,9 @@ c_snr_list  = np.arange(closers*0.01, closers-(closers*0.5), closers/101)
 
 
 while True:
-    openers_data = buffer.get_data()[:,opener_chans]
-    closers_data = buffer.get_data()[:,closer_chans]
+    
+    openers_data = abs(buffer.get_data()[:,opener_chans])
+    closers_data = abs(buffer.get_data()[:,closer_chans])
 
     o_temp = []
     o_rms  = []
@@ -144,20 +145,21 @@ while True:
     c_current = []
 
     # detrend, get current rms, get snr
-    o_temp      = [signal.detrend(openers_data[:,chan] - np.mean(openers_data[:,chan])) for chan in range(np.size(openers_data,1))]
-    o_rms       = [np.sqrt(np.mean((o_temp[chan] * 1000) ** 2))                         for chan in range(np.size(openers_data,1))]
-    o_current   = [(o_rms[chan] / openers_rest[chan]) ** 2                              for chan in range(np.size(openers_data,1))]
+    o_temp      = [openers_data[:,chan] - np.mean(openers_data[:,chan]) for chan in range(np.size(openers_data,1))]
+    o_rms       = [np.sqrt(np.mean((o_temp[chan] * 1000) ** 2))         for chan in range(np.size(openers_data,1))]
+    o_current   = [(o_rms[chan] / openers_rest[chan]) ** 2              for chan in range(np.size(openers_data,1))]
     o_current   = np.mean(o_current)
 
-    c_temp      = [signal.detrend(closers_data[:,chan] - np.mean(closers_data[:,chan])) for chan in range(np.size(closers_data,1))]
-    c_rms       = [np.sqrt(np.mean((c_temp[chan] * 1000) ** 2))                         for chan in range(np.size(closers_data,1))]
-    c_current   = [(c_rms[chan] / closers_rest[chan]) ** 2                              for chan in range(np.size(closers_data,1))]
+    c_temp      = [closers_data[:,chan] - np.mean(closers_data[:,chan]) for chan in range(np.size(closers_data,1))]
+    c_rms       = [np.sqrt(np.mean((c_temp[chan] * 1000) ** 2))         for chan in range(np.size(closers_data,1))]
+    c_current   = [(c_rms[chan] / closers_rest[chan]) ** 2              for chan in range(np.size(closers_data,1))]
     c_current   = np.mean(c_current)
 
     # convert to index of snr lists
     o_stim_idx  = min(range(len(o_snr_list)), key=lambda i: abs(o_snr_list[i]-o_current))
     c_stim_idx  = min(range(len(c_snr_list)), key=lambda i: abs(c_snr_list[i]-c_current))
-
+    
+    # ensure that only one muscle is stimulated at a time
     if o_stim_idx > c_stim_idx:
         c_stim_idx = 0
     else:
