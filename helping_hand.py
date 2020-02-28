@@ -17,12 +17,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 from stg.api import STG4000
 
-def countdown(canvas, sec):
-    for i in range(0, sec):
-        cue = reiz.Cue(canvas, visualstim=Mural(text=str(sec - i)))
-        cue.show(duration=1)
-
-
 sinfo  = liesl.get_streaminfos_matching(type="EEG")[0]
 buffer = liesl.RingBuffer(sinfo, duration_in_ms=500)
 buffer.start()
@@ -31,16 +25,19 @@ time.sleep(0.01)
 
 canvas = reiz.Canvas()
 canvas.open()
+
 opener_chans = [0, 1]
 closer_chans = [2, 3]
-
-
 # stim range going from 0 to max_amp in steps of 5% of max_amp
 max_amp      = 10.2
 multiplier   = 1.0 # add a decimal number to this value to increase max amp
 o_stim_range = np.arange(0, max_amp * multiplier, max_amp * multiplier/50)
 c_stim_range = np.arange(0, max_amp * multiplier, max_amp * multiplier/50)
 
+def countdown(canvas, sec):
+    for i in range(0, sec):
+        cue = reiz.Cue(canvas, visualstim=Mural(text=str(sec - i)))
+        cue.show(duration=1)
 
 def calibrate_hh(buffer, canvas, o_stim_range, c_stim_range, opener_chans, closer_chans):
     reiz.Cue(canvas, visualstim=[
@@ -128,101 +125,106 @@ def set_stg():
 
 
 
-def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_list, c_snr_list, openers_rest, closers_rest, visual=True):
-     
-    openers_data = abs(buffer.get_data()[:,opener_chans])
-    closers_data = abs(buffer.get_data()[:,closer_chans])
-
-    o_temp = []
-    o_rms  = []
-    c_temp = []
-    c_rms  = []
-    o_current = []
-    c_current = []
-
-    # detrend, get current rms, get snr
-    o_temp      = [openers_data[:,chan] - np.mean(openers_data[:,chan]) for chan in range(np.size(openers_data,1))]
-    o_rms       = [np.sqrt(np.mean((o_temp[chan] * 1000) ** 2))         for chan in range(np.size(openers_data,1))]
-    o_current   = [(o_rms[chan] / openers_rest[chan]) ** 2              for chan in range(np.size(openers_data,1))]
-    o_current   = np.mean(o_current)
-
-    c_temp      = [closers_data[:,chan] - np.mean(closers_data[:,chan]) for chan in range(np.size(closers_data,1))]
-    c_rms       = [np.sqrt(np.mean((c_temp[chan] * 1000) ** 2))         for chan in range(np.size(closers_data,1))]
-    c_current   = [(c_rms[chan] / closers_rest[chan]) ** 2              for chan in range(np.size(closers_data,1))]
-    c_current   = np.mean(c_current)
-
-    # convert to index of snr lists
-    o_stim_idx  = min(range(len(o_snr_list)), key=lambda i: abs(o_snr_list[i]-o_current))
-    c_stim_idx  = min(range(len(c_snr_list)), key=lambda i: abs(c_snr_list[i]-c_current))
+def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_list, c_snr_list, openers_rest, closers_rest, axes, visual=True):
     
-    # ensure that only one muscle is stimulated at a time
-    if o_stim_idx > c_stim_idx:
-        c_stim_idx = 0
-    else:
-        o_stim_idx = 0
-
-    # using the mapping made earlier, we use the indices to map to stim amplitude
+    while True:
+        openers_data = abs(buffer.get_data()[:,opener_chans])
+        closers_data = abs(buffer.get_data()[:,closer_chans])
     
-    o_amps = [o_stim_range[o_stim_idx], o_stim_range[o_stim_idx]*-1, 0]
-    c_amps = [o_stim_range[c_stim_idx], o_stim_range[c_stim_idx]*-1, 0]
-
-    stg.set_signal(channel_index=0,
-                            amplitudes_in_mA= o_amps,
-                            durations_in_ms=fes_ON)
-    stg.set_signal(channel_index=1,
-                            amplitudes_in_mA= c_amps,
-                            durations_in_ms=fes_ON)
+        o_temp = []
+        o_rms  = []
+        c_temp = []
+        c_rms  = []
+        o_current = []
+        c_current = []
     
-    if visual == True:
-        fig, axes = plt.subplots(1, len(opener_chans)*2, sharex=False)
-        # EMG channel inspection
-        axes[0].cla()
-        axes[0].plot(buffer.get_data()[:,opener_chans[0]])
-        axes[1].plot(buffer.get_data()[:,opener_chans[1]])
-        axes[0].set_title('Opener 1 EMG')
-        axes[1].set_title('Opener 2 EMG')
+        # detrend, get current rms, get snr
+        o_temp     = [openers_data[:,chan] - np.mean(openers_data[:,chan]) for chan in range(np.size(openers_data,1))]
+        o_rms      = [np.sqrt(np.mean((o_temp[chan] * 1000) ** 2))         for chan in range(np.size(openers_data,1))]
+        o_current  = [(o_rms[chan] / openers_rest[chan]) ** 2              for chan in range(np.size(openers_data,1))]
+        o_current  = np.mean(o_current)
+    
+        c_temp     = [closers_data[:,chan] - np.mean(closers_data[:,chan]) for chan in range(np.size(closers_data,1))]
+        c_rms      = [np.sqrt(np.mean((c_temp[chan] * 1000) ** 2))         for chan in range(np.size(closers_data,1))]
+        c_current  = [(c_rms[chan] / closers_rest[chan]) ** 2              for chan in range(np.size(closers_data,1))]
+        c_current  = np.mean(c_current)
+    
+        # convert to index of snr lists
+        o_stim_idx = min(range(len(o_snr_list)), key=lambda i: abs(o_snr_list[i]-o_current))
+        c_stim_idx = min(range(len(c_snr_list)), key=lambda i: abs(c_snr_list[i]-c_current))
         
-        textstr1 = "Openers stim amp = {0:3.2f}".format(o_stim_range[o_stim_idx])
-        props    = dict(boxstyle="round", facecolor="wheat", alpha=0.9)
+        # ensure that only one muscle is stimulated at a time
+        if o_stim_idx > c_stim_idx:
+            c_stim_idx = 0
+        else:
+            o_stim_idx = 0
     
-        axes[0].text(
-            0.05,
-            0.95,
-            textstr1,
-            transform=axes[0].transAxes,
-            fontsize=14,
-            verticalalignment="top",
-            bbox=props)
-        
-        axes[2].cla()
-        axes[2].plot(buffer.get_data()[:,closer_chans[0]])
-        axes[3].plot(buffer.get_data()[:,closer_chans[1]])
-        axes[2].set_title('Closer 1 EMG')
-        axes[3].set_title('Closer 2 EMG')
-        
-        textstr2 = "Closers stim amp = {0:3.2f}".format(c_stim_range[c_stim_idx])
-        props    = dict(boxstyle="round", facecolor="wheat", alpha=0.9)
+        # using the mapping made earlier, we use the indices to map to stim amplitude
+        o_amps = [o_stim_range[o_stim_idx], o_stim_range[o_stim_idx]*-1, 0]
+        c_amps = [o_stim_range[c_stim_idx], o_stim_range[c_stim_idx]*-1, 0]
     
-        axes[2].text(
-            0.05,
-            0.95,
-            textstr2,
-            transform=axes[2].transAxes,
-            fontsize=14,
-            verticalalignment="top",
-            bbox=props)
+        stg.set_signal(channel_index=0,
+                                amplitudes_in_mA= o_amps,
+                                durations_in_ms=fes_ON)
+        stg.set_signal(channel_index=1,
+                                amplitudes_in_mA= c_amps,
+                                durations_in_ms=fes_ON)
         
-        plt.pause(0.01)
+        if visual == True:
+            # EMG channel inspection
+            axes[0].cla()
+            axes[0].plot(buffer.get_data()[:,opener_chans[0]])
+            axes[1].cla()
+            axes[1].plot(buffer.get_data()[:,opener_chans[1]])
+            axes[0].set_title('Opener 1 EMG')
+            axes[1].set_title('Opener 2 EMG')
+            
+            textstr1 = "Openers stim amp = {0:3.2f}".format(o_amps[0])
+            props    = dict(boxstyle="round", facecolor="wheat", alpha=0.9)
+        
+            axes[0].text(
+                0.05,
+                0.95,
+                textstr1,
+                transform=axes[0].transAxes,
+                fontsize=14,
+                verticalalignment="top",
+                bbox=props)
+            
+            axes[2].cla()
+            axes[2].plot(buffer.get_data()[:,closer_chans[0]])
+            axes[3].cla()
+            axes[3].plot(buffer.get_data()[:,closer_chans[1]])
+            axes[2].set_title('Closer 1 EMG')
+            axes[3].set_title('Closer 2 EMG')
+            
+            textstr2 = "Closers stim amp = {0:3.2f}".format(c_amps[0])
+            props    = dict(boxstyle="round", facecolor="wheat", alpha=0.9)
+        
+            axes[2].text(
+                0.05,
+                0.95,
+                textstr2,
+                transform=axes[2].transAxes,
+                fontsize=14,
+                verticalalignment="top",
+                bbox=props)
+            fig.gca()
+            plt.pause(0.01)
         
 #%%
     
 if __name__ == "__main__":
     o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range, 
                                                                       c_stim_range, opener_chans, closer_chans)
-    stg, fes_ON = set_stg()
     
+    fig, axes = plt.subplots(len(opener_chans)*2, 1, sharex=False)
+    fig.canvas.manager.window.resize(1280, 1024)
+    fig.tight_layout()
+            
+    stg, fes_ON = set_stg()
     while True:
         helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, 
-                     o_snr_list, c_snr_list, openers_rest, closers_rest, visual=True)
+                     o_snr_list, c_snr_list, openers_rest, closers_rest, axes, visual=True)
     
     stg.stop_streaming()
