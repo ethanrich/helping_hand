@@ -34,6 +34,26 @@ multiplier   = 1.0 # add a decimal number to this value to increase max amp
 o_stim_range = np.arange(0, max_amp * multiplier, max_amp * multiplier/50)
 c_stim_range = np.arange(0, max_amp * multiplier, max_amp * multiplier/50)
 
+def check_channels(buffer, axes):
+     # EMG channel inspection
+    axes[0].cla()
+    axes[0].plot(buffer.get_data()[:,opener_chans[0]])
+    axes[1].cla()
+    axes[1].plot(buffer.get_data()[:,opener_chans[1]])
+    axes[0].set_title('Opener 1 EMG')
+    axes[1].set_title('Opener 2 EMG')
+
+    
+    axes[2].cla()
+    axes[2].plot(buffer.get_data()[:,closer_chans[0]])
+    axes[3].cla()
+    axes[3].plot(buffer.get_data()[:,closer_chans[1]])
+    axes[2].set_title('Closer 1 EMG')
+    axes[3].set_title('Closer 2 EMG')
+
+    fig.gca()
+    plt.pause(0.01)
+
 def countdown(canvas, sec):
     for i in range(0, sec):
         cue = reiz.Cue(canvas, visualstim=Mural(text=str(sec - i)))
@@ -215,12 +235,15 @@ def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_
 #%%
     
 if __name__ == "__main__":
-    o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range, 
-                                                                      c_stim_range, opener_chans, closer_chans)
     
     fig, axes = plt.subplots(len(opener_chans)*2, 1, sharex=False)
     fig.canvas.manager.window.resize(1280, 1024)
     fig.tight_layout()
+    
+    check_channels(buffer, axes)
+    
+    o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range, 
+                                                                      c_stim_range, opener_chans, closer_chans)
             
     stg, fes_ON = set_stg()
     while True:
