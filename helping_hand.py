@@ -15,26 +15,7 @@ import reiz
 from reiz.visual import Mural
 from matplotlib import pyplot as plt
 import numpy as np
-from scipy import stats
 from stg.api import STG4000
-
-sinfo  = liesl.get_streaminfos_matching(type="EEG")[0]
-buffer = liesl.RingBuffer(sinfo, duration_in_ms=500)
-buffer.start()
-buffer.await_running()
-time.sleep(0.01)
-
-canvas = reiz.Canvas()
-canvas.open()
-
-opener_chans = [63+7]
-closer_chans = [63+8, 63+9]
-# stim range going from 0 to max_amp in steps of 5% of max_amp
-omax_amp     = 10.2
-cmax_amp     = 10.2
-multiplier   = 1.0 # add a decimal number to this value to increase max amp
-o_stim_range = np.arange(0, omax_amp * multiplier, omax_amp * multiplier/50)
-c_stim_range = np.arange(0, cmax_amp * multiplier, cmax_amp * multiplier/50)
 
 def check_channels(buffer):
     fig, axes = plt.subplots(2, 1, sharex=False)
@@ -114,6 +95,7 @@ def countdown(canvas, sec):
         cue.show(duration=1)
 
 def calibrate_hh(buffer, canvas, o_stim_range, c_stim_range, opener_chans, closer_chans):
+    
     reiz.Cue(canvas, visualstim=[
         reiz.visual.Mural(
             "EMG Calibration Procedure",
@@ -233,9 +215,22 @@ def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_
             print('Openers: ' + str(o_amps[0]))
         elif o_amps[0] == 0:
             print('Closers: ' + str(c_amps[0]))
+            
 #%%
 
 if __name__ == "__main__":
+    
+    sinfo  = liesl.get_streaminfos_matching(type="EEG")[0]
+    buffer = liesl.RingBuffer(sinfo, duration_in_ms=500)
+    buffer.start()
+    buffer.await_running()
+    time.sleep(0.01)
+    canvas = reiz.Canvas()
+    canvas.open()
+    #---------------------------
+    opener_chans = [63+7]
+    closer_chans = [63+8, 63+9]
+    #---------------------------
     
     pulse_width   = 0.2  # here the pulse width size can be changed
     fes_ON        = [pulse_width, pulse_width, 50.1 - pulse_width * 2]
@@ -247,6 +242,13 @@ if __name__ == "__main__":
     check_channels(buffer)
     # find the stimulation threshold for the user
     calibrate_fes(canvas, stg)
+    # stim range going from 0 to max_amp in steps of % of max amp
+    omax_amp     = 10.2
+    cmax_amp     = 10.2
+    multiplier   = 1.0 # add a decimal number to this value to increase max amp
+    o_stim_range = np.arange(1, omax_amp * multiplier, omax_amp * multiplier/40)
+    c_stim_range = np.arange(1, cmax_amp * multiplier, cmax_amp * multiplier/40)
+    
     # calibrate the resting state
     o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range,
                                                                       c_stim_range, opener_chans, closer_chans)
