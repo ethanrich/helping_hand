@@ -88,7 +88,7 @@ def calibrate_fes(canvas, stg):
             t1 = time.time()
         stg.stop_streaming()
 
-
+        return omax_amp, cmax_amp
 def countdown(canvas, sec):
     for i in range(0, sec):
         cue = reiz.Cue(canvas, visualstim=Mural(text=str(sec - i)))
@@ -241,10 +241,10 @@ if __name__ == "__main__":
     # check if the proper channels are connected
     check_channels(buffer)
     # find the stimulation threshold for the user
-    calibrate_fes(canvas, stg)
+    omax_amp, cmax_amp = calibrate_fes(canvas, stg)
     # stim range going from 0 to max_amp in steps of % of max amp
-    omax_amp     = 10.2
-    cmax_amp     = 10.2
+#    omax_amp     = 10.2
+#    cmax_amp     = 10.2
     multiplier   = 1.0 # add a decimal number to this value to increase max amp
     o_stim_range = np.arange(1, omax_amp * multiplier, omax_amp * multiplier/40)
     c_stim_range = np.arange(1, cmax_amp * multiplier, cmax_amp * multiplier/40)
