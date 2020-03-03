@@ -59,6 +59,55 @@ def check_channels(buffer):
     fig.gca()
     plt.pause(0.01)
 
+
+def calibrate_fes(canvas, stg):
+        while True:
+            try:
+                omax_amp = int(input("Openers max amp: "))
+                cmax_amp = int(input("Closers max amp: "))
+                if 5 < omax_amp < 20:
+                    if 5 < cmax_amp < 20:
+                        break
+            except ValueError:
+                print("Bitte gib eine gültige Zahl ein")
+                
+        o_amps = [omax_amp, omax_amp*-1, 0]
+        c_amps = [cmax_amp, cmax_amp*-1, 0]
+        fes_ON = [0.2, 0.2, 50.1 - 0.2 * 2]
+                
+        buffer_in_s = 0.16  # how large is the buffer in the DLL?
+        capacity_in_s = 2 * buffer_in_s  # how large is the buffer on the STG?
+        
+        # Start window and countdown
+        canvas.start_run = False
+        start_protocol = reiz.Cue(canvas, visualstim=Mural(text="Press F5 to start O test: " + str(o_amps)))
+        while not canvas.start_run:
+            start_protocol.show(duration=0.1)
+        
+        t0 = time.time()
+        t1 = time.time()
+        stg.set_signal(channel_index=0, amplitudes_in_mA=[0, 0, 0], durations_in_ms=fes_ON)
+        stg.start_streaming(capacity_in_s=capacity_in_s, buffer_in_s=buffer_in_s)
+    
+        while t1-t0 < 5:
+            stg.set_signal(channel_index=0, amplitudes_in_mA=o_amps, durations_in_ms=fes_ON)
+            t1 = time.time()
+    
+        stg.stop_streaming()
+        
+        reiz.Cue(canvas, visualstim=Mural(text="Starting C test with: " + str(c_amps))).show(5)
+        
+        t0 = time.time()
+        t1 = time.time()
+        stg.set_signal(channel_index=1, amplitudes_in_mA=[0, 0, 0], durations_in_ms=fes_ON)
+        stg.start_streaming(capacity_in_s=capacity_in_s, buffer_in_s=buffer_in_s)
+
+        while t1-t0 < 5:
+            stg.set_signal(channel_index=1, amplitudes_in_mA=c_amps, durations_in_ms=fes_ON)
+            t1 = time.time()
+        stg.stop_streaming()
+
+
 def countdown(canvas, sec):
     for i in range(0, sec):
         cue = reiz.Cue(canvas, visualstim=Mural(text=str(sec - i)))
@@ -187,27 +236,26 @@ def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_
 #%%
 
 if __name__ == "__main__":
-
-#    check_channels(buffer, axes)
-
-    o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range,
-                                                                      c_stim_range, opener_chans, closer_chans)
-
-
-    pulse_width   = 0.1  # here the pulse width size can be changed
+    
+    pulse_width   = 0.2  # here the pulse width size can be changed
     fes_ON        = [pulse_width, pulse_width, 50.1 - pulse_width * 2]
     buffer_in_s   = 0.16  # how large is the buffer in the DLL?
     capacity_in_s = 2 * buffer_in_s  # how large is the buffer on the STG?
     stg           = STG4000()
-
-    stg.set_signal(channel_index=0,
-                                amplitudes_in_mA= [0,0,0],
-                                durations_in_ms=fes_ON)
-    stg.set_signal(channel_index=1,
-                                amplitudes_in_mA= [0,0,0],
-                                durations_in_ms=fes_ON)
+    
+    # check if the proper channels are connected
+    check_channels(buffer)
+    # find the stimulation threshold for the user
+    calibrate_fes(canvas, stg)
+    # calibrate the resting state
+    o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range,
+                                                                      c_stim_range, opener_chans, closer_chans)
+    # initialize stg streaming
+    stg.set_signal(channel_index=0,amplitudes_in_mA= [0,0,0],durations_in_ms=fes_ON)
+    stg.set_signal(channel_index=1,amplitudes_in_mA= [0,0,0],durations_in_ms=fes_ON)
     stg.start_streaming(capacity_in_s=capacity_in_s, buffer_in_s=buffer_in_s)
-
+    
+    # start helping hand 
     while True:
         helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans,
                      o_snr_list, c_snr_list, openers_rest, closers_rest)
