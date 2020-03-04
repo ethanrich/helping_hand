@@ -7,6 +7,11 @@ Created on Sat Feb 22 16:33:02 2020
 This application takes EMG channels as inputs (eg two channels for two extensor muscles, two for flexors) and gives
 STG stimulation (mA) as an output. The intensity (mA) of the stimulation is dependent on the level of activity in the
 "healthy side". Contracting muscles harder will result in an increase in mA, which is capped at "max_amp".
+
+TODO: delay between hands too long
+TODO: calibration test
+
+
 """
 
 import time
@@ -51,33 +56,33 @@ def calibrate_fes(canvas, stg):
                         break
             except ValueError:
                 print("Bitte gib eine gültige Zahl ein")
-                
+
         o_amps = [omax_amp, omax_amp*-1, 0]
         c_amps = [cmax_amp, cmax_amp*-1, 0]
         fes_ON = [0.2, 0.2, 50.1 - 0.2 * 2]
-                
+
         buffer_in_s = 0.16  # how large is the buffer in the DLL?
         capacity_in_s = 2 * buffer_in_s  # how large is the buffer on the STG?
-        
+
         # Start window and countdown
         canvas.start_run = False
         start_protocol = reiz.Cue(canvas, visualstim=Mural(text="Press F5 to start O test: " + str(o_amps)))
         while not canvas.start_run:
             start_protocol.show(duration=0.1)
-        
+
         t0 = time.time()
         t1 = time.time()
         stg.set_signal(channel_index=0, amplitudes_in_mA=[0, 0, 0], durations_in_ms=fes_ON)
         stg.start_streaming(capacity_in_s=capacity_in_s, buffer_in_s=buffer_in_s)
-    
+
         while t1-t0 < 5:
             stg.set_signal(channel_index=0, amplitudes_in_mA=o_amps, durations_in_ms=fes_ON)
             t1 = time.time()
-    
+
         stg.stop_streaming()
-        
+
         reiz.Cue(canvas, visualstim=Mural(text="Starting C test with: " + str(c_amps))).show(5)
-        
+
         t0 = time.time()
         t1 = time.time()
         stg.set_signal(channel_index=1, amplitudes_in_mA=[0, 0, 0], durations_in_ms=fes_ON)
@@ -95,7 +100,7 @@ def countdown(canvas, sec):
         cue.show(duration=1)
 
 def calibrate_hh(buffer, canvas, o_stim_range, c_stim_range, opener_chans, closer_chans):
-    
+
     reiz.Cue(canvas, visualstim=[
         reiz.visual.Mural(
             "EMG Calibration Procedure",
@@ -215,11 +220,11 @@ def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_
             print('Openers: ' + str(o_amps[0]))
         elif o_amps[0] == 0:
             print('Closers: ' + str(c_amps[0]))
-            
+
 #%%
 
 if __name__ == "__main__":
-    
+
     sinfo  = liesl.get_streaminfos_matching(type="EEG")[0]
     buffer = liesl.RingBuffer(sinfo, duration_in_ms=500)
     buffer.start()
@@ -231,24 +236,27 @@ if __name__ == "__main__":
     opener_chans = [63+7]
     closer_chans = [63+8, 63+9]
     #---------------------------
-    
+    omax_amp=11.2
+    cmax_amp=8.2
+
+
     pulse_width   = 0.2  # here the pulse width size can be changed
     fes_ON        = [pulse_width, pulse_width, 50.1 - pulse_width * 2]
     buffer_in_s   = 0.16  # how large is the buffer in the DLL?
     capacity_in_s = 2 * buffer_in_s  # how large is the buffer on the STG?
     stg           = STG4000()
-    
+
     # check if the proper channels are connected
     check_channels(buffer)
     # find the stimulation threshold for the user
-    omax_amp, cmax_amp = calibrate_fes(canvas, stg)
+#    omax_amp, cmax_amp = calibrate_fes(canvas, stg)
     # stim range going from 0 to max_amp in steps of % of max amp
 #    omax_amp     = 10.2
 #    cmax_amp     = 10.2
     multiplier   = 1.0 # add a decimal number to this value to increase max amp
-    o_stim_range = np.arange(1, omax_amp * multiplier, omax_amp * multiplier/40)
-    c_stim_range = np.arange(1, cmax_amp * multiplier, cmax_amp * multiplier/40)
-    
+    o_stim_range = np.arange(0, omax_amp * multiplier, omax_amp * multiplier/50)
+    c_stim_range = np.arange(0, cmax_amp * multiplier, cmax_amp * multiplier/50)
+
     # calibrate the resting state
     o_snr_list, c_snr_list, openers_rest, closers_rest = calibrate_hh(buffer, canvas, o_stim_range,
                                                                       c_stim_range, opener_chans, closer_chans)
@@ -256,8 +264,8 @@ if __name__ == "__main__":
     stg.set_signal(channel_index=0,amplitudes_in_mA= [0,0,0],durations_in_ms=fes_ON)
     stg.set_signal(channel_index=1,amplitudes_in_mA= [0,0,0],durations_in_ms=fes_ON)
     stg.start_streaming(capacity_in_s=capacity_in_s, buffer_in_s=buffer_in_s)
-    
-    # start helping hand 
+
+    # start helping hand
     while True:
         helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans,
                      o_snr_list, c_snr_list, openers_rest, closers_rest)
