@@ -10,8 +10,6 @@ STG stimulation (mA) as an output. The intensity (mA) of the stimulation is depe
 
 TODO: delay between hands too long
 TODO: calibration test
-
-
 """
 
 import time
@@ -94,6 +92,8 @@ def calibrate_fes(canvas, stg):
         stg.stop_streaming()
 
         return omax_amp, cmax_amp
+    
+    
 def countdown(canvas, sec):
     for i in range(0, sec):
         cue = reiz.Cue(canvas, visualstim=Mural(text=str(sec - i)))
@@ -118,8 +118,8 @@ def calibrate_hh(buffer, canvas, o_stim_range, c_stim_range, opener_chans, close
         # show cue
         reiz.Cue(canvas, visualstim=[reiz.visual.Mural("Open your hand")]).show(duration=3)
         # get data of last 1.5 seconds
-        openers_data = buffer.get_data()[:,opener_chans]
-        closers_data = buffer.get_data()[:,closer_chans]
+        openers_data = abs(buffer.get_data()[:,opener_chans])
+        closers_data = abs(buffer.get_data()[:,closer_chans])
         # for each channel, get the rms value
         openers_active = [openers_data[:,chan] - np.mean(openers_data[:,chan]) for chan in range(np.size(openers_data,1))]
         openers_active = [np.sqrt(np.mean((openers_active[chan] * 1000) ** 2))                 for chan in range(np.size(openers_data,1))]
@@ -178,36 +178,38 @@ def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_
         closers_data = abs(buffer.get_data()[:,closer_chans])
 
         o_temp = []
-        o_rms  = []
-        c_temp = []
-        c_rms  = []
-        o_current = []
-        c_current = []
-
-        # detrend, get current rms, get snr
-        o_temp     = [openers_data[:,chan] - np.mean(openers_data[:,chan]) for chan in range(np.size(openers_data,1))]
-        o_rms      = [np.sqrt(np.mean((o_temp[chan] * 1000) ** 2))         for chan in range(np.size(openers_data,1))]
-        o_current  = [(o_rms[chan] / openers_rest[chan]) ** 2              for chan in range(np.size(openers_data,1))]
+        o_rms = np.zeros((len(opener_chans), 1))
+        o_current = np.zeros((len(opener_chans), 1))
+        for chan in range(np.size(openers_data,1)):
+             o_temp           = openers_data[:,chan] - np.mean(openers_data[:,chan])
+             o_rms[chan]      = np.sqrt(np.mean((o_temp * 1000) ** 2))  
+             o_current[chan]  = (o_rms[chan] / openers_rest[chan]) ** 2
         o_current  = np.mean(o_current)
-
-        c_temp     = [closers_data[:,chan] - np.mean(closers_data[:,chan]) for chan in range(np.size(closers_data,1))]
-        c_rms      = [np.sqrt(np.mean((c_temp[chan] * 1000) ** 2))         for chan in range(np.size(closers_data,1))]
-        c_current  = [(c_rms[chan] / closers_rest[chan]) ** 2              for chan in range(np.size(closers_data,1))]
+        
+        c_temp = []
+        c_rms = np.zeros((len(closer_chans), 1))
+        c_current = np.zeros((len(closer_chans), 1))
+        for chan in range(np.size(closers_data,1)):
+            c_temp           = closers_data[:,chan] - np.mean(closers_data[:,chan])
+            c_rms[chan]      = np.sqrt(np.mean((c_temp * 1000) ** 2))
+            c_current[chan]  = (c_rms[chan] / closers_rest[chan]) ** 2
         c_current  = np.mean(c_current)
 
         # convert to index of snr lists
         o_stim_idx = min(range(len(o_snr_list)), key=lambda i: abs(o_snr_list[i]-o_current))
         c_stim_idx = min(range(len(c_snr_list)), key=lambda i: abs(c_snr_list[i]-c_current))
-
-        # ensure that only one muscle is stimulated at a time
-        if o_stim_idx > c_stim_idx:
-            c_stim_idx = 0
-        else:
-            o_stim_idx = 0
-
+        
         # using the mapping made earlier, we use the indices to map to stim amplitude
         o_amps = [o_stim_range[o_stim_idx], o_stim_range[o_stim_idx]*-1, 0]
         c_amps = [c_stim_range[c_stim_idx], c_stim_range[c_stim_idx]*-1, 0]
+        
+        # ensure that only one muscle is stimulated at a time
+        if o_stim_idx > c_stim_idx:
+            c_stim_idx = 0
+            print('Openers: ' + str(o_amps[0]))
+        else:
+            o_stim_idx = 0
+            print('Closers: ' + str(c_amps[0]))
 
         stg.set_signal(channel_index=0,
                                 amplitudes_in_mA= o_amps,
@@ -215,11 +217,6 @@ def helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans, o_snr_
         stg.set_signal(channel_index=1,
                                 amplitudes_in_mA= c_amps,
                                 durations_in_ms=fes_ON)
-
-        if c_amps[0] == 0:
-            print('Openers: ' + str(o_amps[0]))
-        elif o_amps[0] == 0:
-            print('Closers: ' + str(c_amps[0]))
 
 #%%
 
@@ -233,12 +230,9 @@ if __name__ == "__main__":
     canvas = reiz.Canvas()
     canvas.open()
     #---------------------------
-    opener_chans = [63+7]
-    closer_chans = [63+8, 63+9]
+    opener_chans = [0,1]
+    closer_chans = [2,3]
     #---------------------------
-    omax_amp=11.2
-    cmax_amp=8.2
-
 
     pulse_width   = 0.2  # here the pulse width size can be changed
     fes_ON        = [pulse_width, pulse_width, 50.1 - pulse_width * 2]
@@ -248,11 +242,13 @@ if __name__ == "__main__":
 
     # check if the proper channels are connected
     check_channels(buffer)
+    
     # find the stimulation threshold for the user
-#    omax_amp, cmax_amp = calibrate_fes(canvas, stg)
+    omax_amp, cmax_amp = calibrate_fes(canvas, stg)
+    
     # stim range going from 0 to max_amp in steps of % of max amp
-#    omax_amp     = 10.2
-#    cmax_amp     = 10.2
+    omax_amp     = 10.2
+    cmax_amp     = 10.2
     multiplier   = 1.0 # add a decimal number to this value to increase max amp
     o_stim_range = np.arange(0, omax_amp * multiplier, omax_amp * multiplier/50)
     c_stim_range = np.arange(0, cmax_amp * multiplier, cmax_amp * multiplier/50)
@@ -266,8 +262,7 @@ if __name__ == "__main__":
     stg.start_streaming(capacity_in_s=capacity_in_s, buffer_in_s=buffer_in_s)
 
     # start helping hand
-    while True:
-        helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans,
+    helping_hand(stg, fes_ON, buffer, canvas, opener_chans, closer_chans,
                      o_snr_list, c_snr_list, openers_rest, closers_rest)
 
     stg.stop_streaming()
